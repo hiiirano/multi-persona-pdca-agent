@@ -24,10 +24,16 @@ def create_generator_agent(model_client: AzureOpenAIChatCompletionClient) -> Ass
     )
 
 
-def build_generation_prompt(theme: str, platform: str) -> str:
+def build_generation_prompt(theme: str, platform: str, language: str = "ja") -> str:
     fmt = PLATFORM_FORMATS.get(platform, PLATFORM_FORMATS["x"])
-    return f"""テーマ：「{theme}」
-プラットフォーム：{platform}
-形式：{fmt}
+    lang_instruction = (
+        "Output the content in English only."
+        if language == "en"
+        else "コンテンツのみを日本語で出力してください。"
+    )
+    return f"""Theme: "{theme}"
+Platform: {platform}
+Format: {fmt}
+Language instruction: {lang_instruction}
 
-上記の条件でコンテンツを生成してください。"""
+Generate the content now."""

@@ -17,19 +17,23 @@ def create_rewriter_agent(model_client: AzureOpenAIChatCompletionClient) -> Assi
     )
 
 
-def build_rewrite_prompt(content: str, failed_feedbacks: list[dict], platform: str) -> str:
+def build_rewrite_prompt(content: str, failed_feedbacks: list[dict], platform: str, language: str = "ja") -> str:
     feedback_text = "\n".join(
-        f"- [{fb['persona']}]（{fb['score']}点）: {fb['feedback']}"
+        f"- [{fb['persona']}] ({fb['score']}pts): {fb['feedback']}"
         for fb in failed_feedbacks
     )
-    return f"""以下のコンテンツを改善してください。
+    lang_instruction = (
+        "Output the improved content in English only."
+        if language == "en"
+        else "改善後のコンテンツのみを日本語で出力してください。"
+    )
+    return f"""Rewrite the following content based on the persona feedback.
 
-【現在のコンテンツ】
+[Current Content]
 {content}
 
-【不合格だったペルソナからのフィードバック】
+[Feedback from failing personas]
 {feedback_text}
 
-【プラットフォーム】{platform}
-
-フィードバックを反映した改善版を出力してください。"""
+[Platform] {platform}
+[Language] {lang_instruction}"""

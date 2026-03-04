@@ -44,7 +44,7 @@ async def evaluate_content(content: str, persona_agents, model_client) -> list[E
     return list(await asyncio.gather(*[eval_one(a) for a in persona_agents]))
 
 
-async def run_pdca(theme: str, platform: str = "x") -> dict:
+async def run_pdca(theme: str, platform: str = "x", language: str = "ja") -> dict:
     """PDCAループのメイン処理"""
     model_client = AzureOpenAIChatCompletionClient(
         azure_deployment=os.environ["AZURE_OPENAI_DEPLOYMENT"],
@@ -60,7 +60,7 @@ async def run_pdca(theme: str, platform: str = "x") -> dict:
 
     # Step 1: 初稿生成
     print(f"\n[Generator] テーマ「{theme}」({platform}) の初稿を生成中...")
-    gen_prompt = build_generation_prompt(theme, platform)
+    gen_prompt = build_generation_prompt(theme, platform, language)
     gen_response = await generator.on_messages(
         [TextMessage(content=gen_prompt, source="user")],
         cancellation_token=None,
@@ -91,7 +91,7 @@ async def run_pdca(theme: str, platform: str = "x") -> dict:
         # Step 3: リライト
         print(f"\n[Rewriter] {len(failed)}ペルソナのFBを元にリライト中...")
         failed_feedbacks = [{"persona": r.persona, "score": r.score, "feedback": r.feedback} for r in failed]
-        rewrite_prompt = build_rewrite_prompt(content, failed_feedbacks, platform)
+        rewrite_prompt = build_rewrite_prompt(content, failed_feedbacks, platform, language)
         rw_response = await rewriter.on_messages(
             [TextMessage(content=rewrite_prompt, source="user")],
             cancellation_token=None,
@@ -107,6 +107,16 @@ async def run_pdca(theme: str, platform: str = "x") -> dict:
         "scores": {r.persona: r.score for r in final_results},
         "iterations": len(history),
         "all_passed": all(r.score >= PASS_SCORE_THRESHOLD for r in final_results),
+        "history": [
+            {
+                "iteration": h["iteration"],
+                "results": [
+                    {"persona": r.persona, "score": r.score, "verdict": r.verdict, "feedback": r.feedback}
+                    for r in h["results"]
+                ],
+            }
+            for h in history
+        ],
     }
 
 
