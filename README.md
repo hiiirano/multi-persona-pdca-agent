@@ -20,17 +20,18 @@ Writing social media content that resonates with diverse audiences is hard. A po
 
 ```mermaid
 flowchart TD
-    A[User Input\nTheme + Platform] --> B[GeneratorAgent\nCreate initial draft]
-    B --> C{3 Persona Agents\nin parallel}
-    C --> D[🧑 General\nCasual reader]
-    C --> E[💼 Side Biz\nAspiring entrepreneur]
-    C --> F[⚙️ Tech\nTechnical audience]
-    D --> G{Orchestrator\nAll scores ≥ 70?}
+    A["User Input: Theme + Platform"] --> B["GeneratorAgent: Create initial draft"]
+    B --> D["PersonaAgent: General"]
+    B --> E["PersonaAgent: SideBiz"]
+    B --> F["PersonaAgent: Tech"]
+    D --> G{"All scores >= 70?"}
     E --> G
     F --> G
-    G -- YES --> H[✅ Final Content\nOutput to user]
-    G -- NO / max 3 loops --> I[RewriterAgent\nRefine based on feedback]
-    I --> C
+    G -- YES --> H["Final Content Output"]
+    G -- NO --> I["RewriterAgent: Refine draft"]
+    I --> D
+    I --> E
+    I --> F
 ```
 
 ### Agent Roles
