@@ -1,0 +1,95 @@
+name: Build and Deploy to Azure Container Apps
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: hiiiranoacr.azurecr.io
+  IMAGE_NAME: pdca-agent
+  RESOURCE_GROUP: rg-hiiirano-3180
+  CONTAINER_APP_NAME: pdca-agent
+  CONTAINER_APP_ENV: pdca-agent-env
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create Container Apps Environment (if not exists)
+        run: |
+          az extension add --name containerapp --upgrade -y
+          az containerapp env show \
+            --name ${{ env.CONTAINER_APP_ENV }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            -o none 2>/dev/null || \
+          az containerapp env create \
+            --name ${{ env.CONTAINER_APP_ENV }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --location eastus2
+
+      - name: Deploy to Container Apps
+        run: |
+          az containerapp show \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            -o none 2>/dev/null && \
+          az containerapp update \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --set-env-vars \
+              AZURE_OPENAI_ENDPOINT=secretref:azure-openai-endpoint \
+              AZURE_OPENAI_API_KEY=secretref:azure-openai-api-key \
+              AZURE_OPENAI_DEPLOYMENT=secretref:azure-openai-deployment || \
+          az containerapp create \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --environment ${{ env.CONTAINER_APP_ENV }} \
+            --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --registry-server ${{ env.REGISTRY }} \
+            --registry-username ${{ secrets.ACR_USERNAME }} \
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
+            --target-port 8501 \
+            --ingress external \
+            --min-replicas 0 \
+            --max-replicas 1 \
+            --secrets \
+              azure-openai-endpoint=${{ secrets.AZURE_OPENAI_ENDPOINT }} \
+              azure-openai-api-key=${{ secrets.AZURE_OPENAI_API_KEY }} \
+              azure-openai-deployment=${{ secrets.AZURE_OPENAI_DEPLOYMENT }} \
+            --env-vars \
+              AZURE_OPENAI_ENDPOINT=secretref:azure-openai-endpoint \
+              AZURE_OPENAI_API_KEY=secretref:azure-openai-api-key \
+              AZURE_OPENAI_DEPLOYMENT=secretref:azure-openai-deployment
+
+      - name: Get App URL
+        run: |
+          URL=$(az containerapp show \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          echo "App URL: https://$URL"
