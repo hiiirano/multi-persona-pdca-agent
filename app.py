@@ -91,5 +91,19 @@ if run_btn and theme.strip():
 
     # ── Final content ────────────────────────────────────
     st.subheader("📋 Final Content")
-    st.markdown(result["final_content"])
-    st.code(result["final_content"], language=None)
+
+    if platform == "x":
+        import re
+        raw = result["final_content"].strip()
+        # Split on tweet numbers like "1/5 ", "2/5 ", etc.
+        parts = re.split(r"\d+/\d+\s*", raw)
+        tweets = [p.strip() for p in parts if p.strip()]
+        if len(tweets) > 1:
+            for i, tweet in enumerate(tweets, 1):
+                st.markdown(f"**Tweet {i}/{len(tweets)}**")
+                st.code(tweet, language=None)
+        else:
+            st.code(raw, language=None)
+    else:
+        st.markdown(result["final_content"])
+        st.code(result["final_content"], language=None)
